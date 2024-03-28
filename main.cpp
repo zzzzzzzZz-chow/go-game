@@ -8,10 +8,9 @@
 #include <ftxui/screen/string.hpp>
 #include <vector>
 
-ftxui::Component QiPan() {
+ftxui::Component QiPan(std::shared_ptr<int> next) {
   using namespace ftxui;
   auto state = Make<std::vector<std::vector<int>>>();
-  auto next = Make<int>(1);
   for (int i = 0; i < 19; ++i) {
     std::vector<int> tmp;
     for (int j = 0; j < 19; ++j)
@@ -166,8 +165,12 @@ ftxui::Component QiPan() {
         time - old < std::chrono::milliseconds(500)) { // 下棋间隔不可小于0.5s
       return true;
     }
+    if (mouse.y - 2 < 0 || mouse.y - 2 > 19)
+      return false;
+    if ((mouse.x - 11) / 2 < 0 || (mouse.x - 11) / 2 > 19)
+      return false;
 
-    int &pos = (*state)[mouse.y - 2][(mouse.x - 8) / 2];
+    int &pos = (*state)[mouse.y - 2][(mouse.x - 11) / 2];
     if (pos != 0) // 有子
       return true;
     pos = *next;
@@ -185,9 +188,32 @@ ftxui::Component QiPan() {
 int main() {
   using namespace ftxui;
   auto screen = ScreenInteractive::FitComponent();
-  auto qipan = QiPan() | borderDouble;
+  auto next = Make<int>(1);
+  auto qipan = QiPan(next) | borderDouble;
   auto button = Button("Quit", screen.ExitLoopClosure()) | color(Color::Red);
-  auto h = Container::Horizontal({button, qipan});
+  auto button2 = Button("Pass",
+                        [next] {
+                          if (*next == 1)
+                            *next = -1;
+                          else
+                            *next = 1;
+                        }) |
+                 color(Color::Red);
+  auto next_txt = Renderer([=] {
+                    if (*next == 1)
+                      return vbox({text("next:") | center,
+                                   text("White") | color(Color::Black) |
+                                       bgcolor(Color::White) | border}) |
+                             border;
+                    else
+                      return vbox({text("next:") | center,
+                                   text("Black") | color(Color::White) |
+                                       bgcolor(Color::Black) | border}) |
+                             border;
+                  }) |
+                  focus; // 使用focus到文本上，防止光标导出晃
+  auto h = Container::Horizontal(
+      {Container::Vertical({next_txt, button, button2}), qipan});
   auto layout = Renderer(h, [=] {
     return window(text("GO") | center | blink, h->Render()) |
            color(LinearGradient{}
